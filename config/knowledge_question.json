@@ -1,0 +1,5 @@
+{
+    "intent": "knowledge_question",
+    "utterance": "Who are you?",
+    "intent_data": "{\"queryText\": \"Who are you?\"}"
+}
