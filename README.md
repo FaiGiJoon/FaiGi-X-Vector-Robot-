@@ -1,60 +1,66 @@
-# Anki Vector 1.0 + Ollama Integration
+# FaiGi-X-Vector-Robot: Vector 1.0 + Ollama Local AI Bridge
 
-This project provides a Python script to integrate Anki Vector 1.0 with an Ollama server, allowing Vector to answer questions using local Large Language Models (LLMs) like Llama 3.
+This project establishes a production-ready, highly resilient local AI bridge between an Anki/DDL Vector robot and a local Ollama LLM instance. By leveraging Wire-Pod's Custom Intents, Vector can intercept voice commands and respond using a local LLM while maintaining his unique robot persona.
+
+## Core Features
+- **Asynchronous Architecture**: Built with `aiohttp` to minimize latency between user speech and Vector's response.
+- **Conversational Memory**: A sliding window buffer allows Vector to handle contextual follow-up questions naturally.
+- **Strict TTS Compliance**: Automated sanitization ensures responses are perfectly formatted for Vector's voice engine.
+- **Resilient Networking**: Includes pre-flight health checks, exponential backoff retries, and graceful fallback mechanisms.
+- **Secure Configuration**: Uses environment variables to keep your network setup private.
+
+## Repository Structure
+```
+├── config/             # Sample Wire-Pod JSON intent payloads
+├── src/
+│   ├── core/           # Main bridge logic and API abstraction
+│   └── utils/          # Helper functions, logging, and config loaders
+├── tests/              # Unit and integration tests
+├── .env.example        # Template for configuration
+├── requirements.txt    # Pinned dependencies
+└── README.md
+```
 
 ## Prerequisites
-
-1.  **Anki Vector 1.0 Robot**: Ensure your Vector is set up and accessible. (Works best with [WirePod](https://github.com/kercre123/wire-pod)).
-2.  **Ollama**: Install Ollama from [ollama.com](https://ollama.com/).
-3.  **Python 3.6+**: Ensure Python is installed on your machine.
+- **Anki Vector 1.0**: Setup with [Wire-Pod](https://github.com/kercre123/wire-pod).
+- **Ollama**: Installed and running locally ([ollama.com](https://ollama.com/)).
+- **Python 3.8+**: Recommended for optimal async performance.
 
 ## Setup Instructions
 
-### 1. Install Ollama and Pull a Model
-
-After installing Ollama, pull the model you wish to use (default is `llama3`):
-
+### 1. Configure Ollama
+Pull your preferred model (default is `llama3`):
 ```bash
 ollama pull llama3
 ```
 
-Ensure the Ollama server is running (it usually starts automatically).
-
-### 2. Configure Vector SDK
-
-If you haven't already, install the Vector SDK and configure your connection:
-
+### 2. Configure Environment
+Copy the example environment file and fill in your details:
 ```bash
-pip install anki_vector
-python3 -m anki_vector.configure
+cp .env.example .env
 ```
-
-Follow the prompts to enter your robot's name, IP address, serial number, and credentials.
+Edit `.env` with your `OLLAMA_BASE_URL` and `WIRE_POD_IP`.
 
 ### 3. Install Dependencies
-
-Install the required Python libraries for this integration:
-
 ```bash
 pip install -r requirements.txt
 ```
 
-## Running the Integration
+### 4. Wire-Pod Integration
+To use this bridge, configure a **Custom Intent** or **Knowledge Graph** in Wire-Pod:
+1. Open your Wire-Pod web interface.
+2. Navigate to **Behavior Settings** > **Knowledge Graph**.
+3. Set the provider to "Custom" and point it to the IP/port where this script will be listening (if using a web-server wrapper) OR ensure Wire-Pod is configured to send `knowledge_question` intents to the SDK.
+4. Example Utterances: "Talk to me", "I have a question", "Hey Vector, ask the AI...".
 
-1.  Open `vector_ollama.py` and ensure the `OLLAMA_MODEL` variable matches the model you pulled (default is `llama3`).
-2.  Run the script:
-
+## Running the Bridge
+Start the integration:
 ```bash
-python3 vector_ollama.py
+python src/core/vector_ollama.py
 ```
 
-3.  Once the script says "Connected!", you can ask Vector a question.
-    -   Say: **"Hey Vector, I have a question."**
-    -   Vector will wait for your query. Ask your question (e.g., "Why is the sky blue?").
-    -   Vector will send the query to Ollama and speak the response.
-
 ## Troubleshooting
-
--   **Connection Error**: Ensure Vector is on the same network and WirePod (if used) is running.
--   **Ollama Error**: Check if Ollama is running by visiting `http://localhost:11434` in your browser.
--   **Intent Data**: The script prints `intent_data` to the console. If Vector doesn't respond as expected, check the console output to see if the JSON structure of the voice command has changed.
+- **Network Conflicts**: Ensure no firewalls are blocking communication between the Wire-Pod host and the Ollama server (default port `11434`).
+- **Ollama Offline**: The script will perform a health check on startup. If it fails, verify Ollama is running by visiting `http://localhost:11434/api/tags` in your browser.
+- **Robot Connection**: Ensure you have run `python3 -m anki_vector.configure` and the robot is on the same network.
+- **Latency**: If responses are slow, try a smaller model like `tinyllama` or `phi3`.
