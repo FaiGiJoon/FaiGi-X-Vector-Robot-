@@ -4,7 +4,9 @@ import sys
 import re
 import os
 import logging
+import time
 from collections import deque
+from threading import Thread
 
 # --- ENVIRONMENT CONFIGURATION ---
 # Set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION before any SDK imports
@@ -37,6 +39,13 @@ OLLAMA_BASE_URL = config["OLLAMA_BASE_URL"]
 # Initialize Ollama Client
 ollama_client = OllamaClient(OLLAMA_BASE_URL, OLLAMA_MODEL)
 
+# Global loop for async tasks
+_global_loop = None
+
+def _start_background_loop(loop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
 # Conversational Memory
 memory = deque(maxlen=5) # Keeps last 5 exchanges
 
@@ -61,22 +70,24 @@ def on_user_intent(robot, event_type, event, done=None):
     """
     Callback for user intent events.
     """
-    # Depending on how the event is dispatched, it might already be a UserIntent object
-    # or it might be the raw event data.
     if isinstance(event, UserIntent):
         user_intent = event
     else:
         user_intent = UserIntent(event)
 
-    # We are interested in knowledge questions
-    if user_intent.intent_event is UserIntentEvent.knowledge_question:
+    # Interested in knowledge questions and greetings
+    relevant_intents = [
+        UserIntentEvent.knowledge_question,
+        UserIntentEvent.greeting_hello
+    ]
+
+    if user_intent.intent_event in relevant_intents:
         logging.info(f"Received UserIntent: {user_intent.intent_event}")
 
         query = None
         if user_intent.intent_data:
             try:
                 data = json.loads(user_intent.intent_data)
-                # Try to find the query text. 'queryText' is a common guess.
                 query = data.get('queryText') or data.get('query') or data.get('text')
             except json.JSONDecodeError:
                 logging.error("Failed to decode intent_data JSON")
@@ -84,8 +95,11 @@ def on_user_intent(robot, event_type, event, done=None):
                 return
 
         if not query:
-            logging.warning("Could not extract query text from intent_data. Using a default prompt.")
-            query = "Hello, Vector!"
+            if user_intent.intent_event == UserIntentEvent.greeting_hello:
+                query = "Hello, Vector!"
+            else:
+                logging.warning("Could not extract query text from intent_data. Using a default prompt.")
+                query = "I have a question."
 
         logging.info(f"Querying Ollama with: {query}")
 
@@ -95,15 +109,20 @@ def on_user_intent(robot, event_type, event, done=None):
             messages.append(m)
         messages.append({'role': 'user', 'content': query})
 
+        start_time = time.time()
         try:
-            # Run the async chat call in the current thread's event loop
-            # Note: anki_vector event callbacks are called from a background thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            answer = loop.run_until_complete(ollama_client.chat(messages))
-            loop.close()
+            # Use the global loop to run the async chat call
+            if _global_loop and _global_loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(ollama_client.chat(messages), _global_loop)
+                answer = future.result() # This blocks until the coroutine is finished
+            else:
+                # Fallback if loop is not running
+                loop = asyncio.new_event_loop()
+                answer = loop.run_until_complete(ollama_client.chat(messages))
+                loop.close()
 
-            logging.info(f"Ollama response: {answer}")
+            duration = time.time() - start_time
+            logging.info(f"Ollama response in {duration:.2f}s: {answer}")
 
             # Store in memory
             memory.append({'role': 'user', 'content': query})
@@ -122,13 +141,21 @@ def on_user_intent(robot, event_type, event, done=None):
                 robot.behavior.say_text("I cannot reach my knowledge base right now.")
 
 def main():
+    global _global_loop
     # Use the serial number if provided, otherwise it will try to find the robot automatically
     # requires 'python3 -m anki_vector.configure' to have been run.
     args = anki_vector.util.parse_command_args()
 
     logging.info("Performing pre-flight health checks...")
-    loop = asyncio.get_event_loop()
-    if not loop.run_until_complete(ollama_client.check_health()):
+    _global_loop = asyncio.new_event_loop()
+
+    # Start the background loop thread
+    t = Thread(target=_start_background_loop, args=(_global_loop,), daemon=True)
+    t.start()
+
+    # Use the loop to check health
+    future = asyncio.run_coroutine_threadsafe(ollama_client.check_health(), _global_loop)
+    if not future.result():
         logging.error(f"Cannot reach Ollama at {OLLAMA_BASE_URL}. Please ensure Ollama is running.")
         sys.exit(1)
     logging.info("Ollama health check passed.")
@@ -148,7 +175,6 @@ def main():
             logging.info("Press Ctrl+C to exit.")
 
             try:
-                import time
                 while True:
                     time.sleep(1)
             except KeyboardInterrupt:

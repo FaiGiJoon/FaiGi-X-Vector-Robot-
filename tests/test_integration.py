@@ -30,22 +30,50 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         # Assertions
         mock_ollama_chat.assert_called_once()
         args, kwargs = mock_ollama_chat.call_args
-        # messages[0] is system, messages[1] is user (since memory is empty)
-        self.assertEqual(args[0][1]['content'], 'Who are you?')
+        # messages[0] is system, the last message is the current query
+        self.assertEqual(args[0][-1]['content'], 'Who are you?')
         self.assertEqual(args[0][0]['content'], vector_ollama.SYSTEM_PROMPT)
         
         # Should be sanitized (no markdown, no parentheses)
         mock_robot_instance.behavior.say_text.assert_called_with('Hello! I am Vector.')
 
+    @patch('src.core.vector_ollama.ollama_client.chat', new_callable=AsyncMock)
+    @patch('anki_vector.Robot')
+    def test_on_user_intent_greeting_hello(self, mock_robot, mock_ollama_chat):
+        # Setup mocks
+        mock_robot_instance = MagicMock()
+        mock_ollama_chat.return_value = 'Hello there! How can I help?'
+
+        # Simulate a greeting_hello event
+        mock_event = MagicMock(spec=vector_ollama.UserIntent)
+        mock_event.intent_event = vector_ollama.UserIntentEvent.greeting_hello
+        mock_event.intent_data = None # Common for greetings
+
+        # Call the function
+        vector_ollama.on_user_intent(mock_robot_instance, 'user_intent', mock_event, MagicMock())
+
+        # Assertions
+        mock_ollama_chat.assert_called_once()
+        args, kwargs = mock_ollama_chat.call_args
+        self.assertEqual(args[0][-1]['content'], 'Hello, Vector!')
+        mock_robot_instance.behavior.say_text.assert_called_with('Hello there! How can I help?')
+
     def test_sanitize_for_tts(self):
         # Test markdown removal
         self.assertEqual(sanitize_for_tts("Hello **World**!"), "Hello World!")
+        self.assertEqual(sanitize_for_tts("Vector is #1"), "Vector is one")
+        self.assertEqual(sanitize_for_tts("Check `this` out"), "Check this out")
+        self.assertEqual(sanitize_for_tts("It is _italic_"), "It is italic")
+
+        # Test digit to word conversion
+        self.assertEqual(sanitize_for_tts("I have 2 cubes"), "I have two cubes")
+        self.assertEqual(sanitize_for_tts("0 to 9"), "zero to nine")
 
         # Test apostrophes (natural contractions)
         self.assertEqual(sanitize_for_tts("Don't stop now."), "Don't stop now.")
 
         # Test special characters removal
-        self.assertEqual(sanitize_for_tts("Vector_robot #1 is `cool`."), "Vectorrobot 1 is cool.")
+        self.assertEqual(sanitize_for_tts("Vector_robot #1 is cool."), "Vectorrobot one is cool.")
 
         # Test brackets and parentheses removal
         self.assertEqual(sanitize_for_tts("I am (thinking) [processing]."), "I am thinking processing.")

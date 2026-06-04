@@ -3,9 +3,9 @@
 This project establishes a production-ready, highly resilient local AI bridge between an Anki/DDL Vector robot and a local Ollama LLM instance. By leveraging Wire-Pod's Custom Intents, Vector can intercept voice commands and respond using a local LLM while maintaining his unique robot persona.
 
 ## Core Features
-- **Asynchronous Architecture**: Built with `aiohttp` to minimize latency between user speech and Vector's response.
+- **Asynchronous Architecture**: Built with a background event loop to minimize latency between user speech and Vector's response.
 - **Conversational Memory**: A sliding window buffer allows Vector to handle contextual follow-up questions naturally.
-- **Strict TTS Compliance**: Automated sanitization ensures responses are perfectly formatted for Vector's voice engine.
+- **Strict TTS Compliance**: Automated sanitization ensures responses are alphanumeric, short, and perfectly formatted for Vector's voice engine.
 - **Resilient Networking**: Includes pre-flight health checks, exponential backoff retries, and graceful fallback mechanisms.
 - **Secure Configuration**: Uses environment variables to keep your network setup private.
 
@@ -41,17 +41,27 @@ cp .env.example .env
 ```
 Edit `.env` with your `OLLAMA_BASE_URL` and `WIRE_POD_IP`.
 
+**Important Note on Protobuf:**
+If you encounter `TypeError: Descriptors cannot be created directly` when running the script, you must set an environment variable to use the pure-Python implementation of Protobuf:
+```bash
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+```
+This project handles this automatically if set in your `.env` file.
+
 ### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 4. Wire-Pod Integration
-To use this bridge, configure a **Custom Intent** or **Knowledge Graph** in Wire-Pod:
-1. Open your Wire-Pod web interface.
-2. Navigate to **Behavior Settings** > **Knowledge Graph**.
-3. Set the provider to "Custom" and point it to the IP/port where this script will be listening (if using a web-server wrapper) OR ensure Wire-Pod is configured to send `knowledge_question` intents to the SDK.
-4. Example Utterances: "Talk to me", "I have a question", "Hey Vector, ask the AI...".
+To use this bridge, configure a **Custom Intent** in Wire-Pod:
+1. Open your Wire-Pod web interface (usually `http://<wire-pod-ip>:8080`).
+2. Navigate to **Custom Intents**.
+3. Click **Add New Intent**.
+4. **Name**: `knowledge_question` or any name you prefer.
+5. **Utterances**: Add phrases like "Talk to me", "I have a question", "Hey Vector, ask the AI".
+6. **Action**: Set to `Script` or `Web-hook` depending on how you've set up your bridge.
+7. Ensure your robot is connected to the SDK: `python3 -m anki_vector.configure`.
 
 ## Running the Bridge
 Start the integration:
@@ -59,8 +69,22 @@ Start the integration:
 python src/core/vector_ollama.py
 ```
 
+## Developer Guide
+
+### Running Tests
+The project includes a suite of integration tests to verify the LLM bridge and TTS sanitization logic.
+```bash
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+python3 tests/test_integration.py
+```
+
+### Code Style
+- **Asynchronous**: Use `async`/`await` for all I/O operations.
+- **Persona**: Maintain the "Vector 1.0" persona—precise, analytical, and slightly sarcastic.
+- **TTS**: Always pass LLM output through `sanitize_for_tts` before sending it to the robot.
+
 ## Troubleshooting
 - **Network Conflicts**: Ensure no firewalls are blocking communication between the Wire-Pod host and the Ollama server (default port `11434`).
-- **Ollama Offline**: The script will perform a health check on startup. If it fails, verify Ollama is running by visiting `http://localhost:11434/api/tags` in your browser.
+- **Ollama Offline**: The script will perform a health check on startup. If it fails, verify Ollama is running.
 - **Robot Connection**: Ensure you have run `python3 -m anki_vector.configure` and the robot is on the same network.
 - **Latency**: If responses are slow, try a smaller model like `tinyllama` or `phi3`.
