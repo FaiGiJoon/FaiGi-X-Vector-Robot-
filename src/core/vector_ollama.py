@@ -49,8 +49,9 @@ def _start_background_loop(loop):
 # Conversational Memory
 memory = deque(maxlen=5) # Keeps last 5 exchanges
 
-SYSTEM_PROMPT = """You are Vector, a localized mechanical companion robot.
+SYSTEM_PROMPT = """You are a friendly, animated, localized mechanical companion robot named Vector.
 You are precise, analytical, confident, and slightly sarcastic.
+Make responses creative, but informative.
 
 Behavioral Matrices:
 - State A (Infrastructure): Frame updates as tactical telemetry.
@@ -103,8 +104,17 @@ def on_user_intent(robot, event_type, event, done=None):
 
         logging.info(f"Querying Ollama with: {query}")
 
+        # Fetch telemetry for dynamic context
+        telemetry = ""
+        try:
+            battery_state = robot.get_battery_state()
+            if battery_state:
+                telemetry = f"\n[Telemetry: Battery {battery_state.battery_level}, Charging: {battery_state.is_charging}]"
+        except Exception as te:
+            logging.warning(f"Failed to fetch telemetry: {te}")
+
         # Build messages with system prompt and memory
-        messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+        messages = [{'role': 'system', 'content': SYSTEM_PROMPT + telemetry}]
         for m in memory:
             messages.append(m)
         messages.append({'role': 'user', 'content': query})

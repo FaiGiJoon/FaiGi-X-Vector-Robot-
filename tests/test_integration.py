@@ -17,6 +17,11 @@ class TestVectorOllamaIntegration(unittest.TestCase):
     def test_on_user_intent_knowledge_question(self, mock_robot, mock_ollama_chat):
         # Setup mocks
         mock_robot_instance = MagicMock()
+        mock_battery = MagicMock()
+        mock_battery.battery_level = 3
+        mock_battery.is_charging = False
+        mock_robot_instance.get_battery_state.return_value = mock_battery
+
         mock_ollama_chat.return_value = 'Hello! **I am Vector.** (Internal: robot mode).'
 
         # Simulate a knowledge_question event as a UserIntent object
@@ -32,7 +37,8 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         args, kwargs = mock_ollama_chat.call_args
         # messages[0] is system, the last message is the current query
         self.assertEqual(args[0][-1]['content'], 'Who are you?')
-        self.assertEqual(args[0][0]['content'], vector_ollama.SYSTEM_PROMPT)
+        self.assertTrue(args[0][0]['content'].startswith(vector_ollama.SYSTEM_PROMPT))
+        self.assertIn('[Telemetry: Battery 3, Charging: False]', args[0][0]['content'])
         
         # Should be sanitized (no markdown, no parentheses)
         mock_robot_instance.behavior.say_text.assert_called_with('Hello! I am Vector.')
@@ -42,6 +48,7 @@ class TestVectorOllamaIntegration(unittest.TestCase):
     def test_on_user_intent_greeting_hello(self, mock_robot, mock_ollama_chat):
         # Setup mocks
         mock_robot_instance = MagicMock()
+        mock_robot_instance.get_battery_state.return_value = None
         mock_ollama_chat.return_value = 'Hello there! How can I help?'
 
         # Simulate a greeting_hello event
@@ -59,6 +66,11 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         mock_robot_instance.behavior.say_text.assert_called_with('Hello there! How can I help?')
 
     def test_sanitize_for_tts(self):
+        # Test abbreviation expansion
+        self.assertEqual(sanitize_for_tts("It is 25 C."), "It is twofive Celsius.")
+        self.assertEqual(sanitize_for_tts("Battery is 4 V."), "Battery is four volts.")
+        self.assertEqual(sanitize_for_tts("I am at 100%."), "I am at onezerozero percent.")
+
         # Test markdown removal
         self.assertEqual(sanitize_for_tts("Hello **World**!"), "Hello World!")
         self.assertEqual(sanitize_for_tts("Vector is #1"), "Vector is one")
