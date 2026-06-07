@@ -14,6 +14,21 @@ def sanitize_for_tts(text):
     # Remove markdown characters explicitly before general filtering
     text = re.sub(r'[*_`#]', '', text)
 
+    # Expand common units and abbreviations for natural speech
+    abbreviations = {
+        r'\bV\b': 'volts',
+        r'\bm\b': 'meters',
+        r'\bcm\b': 'centimeters',
+        r'\bkg\b': 'kilograms',
+        r'\bC\b': 'Celsius',
+        r'\bF\b': 'Fahrenheit',
+        r'\bkm/h\b': 'kilometers per hour',
+        r'\bmph\b': 'miles per hour',
+        r'%': ' percent'
+    }
+    for pattern, replacement in abbreviations.items():
+        text = re.sub(pattern, replacement, text)
+
     # Basic number to word conversion for digits 0-9
     num_map = {
         '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four',

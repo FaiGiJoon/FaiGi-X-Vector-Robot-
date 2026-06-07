@@ -4,8 +4,9 @@ This project establishes a production-ready, highly resilient local AI bridge be
 
 ## Core Features
 - **Asynchronous Architecture**: Built with a background event loop to minimize latency between user speech and Vector's response.
+- **Dynamic Persona**: Integrated telemetry allows Vector's personality to react to his physical state (e.g., battery levels).
 - **Conversational Memory**: A sliding window buffer allows Vector to handle contextual follow-up questions naturally.
-- **Strict TTS Compliance**: Automated sanitization ensures responses are alphanumeric, short, and perfectly formatted for Vector's voice engine.
+- **Strict TTS Compliance**: Automated sanitization with unit expansion (e.g., "V" to "volts") ensures natural, perfectly formatted speech.
 - **Resilient Networking**: Includes pre-flight health checks, exponential backoff retries, and graceful fallback mechanisms.
 - **Secure Configuration**: Uses environment variables to keep your network setup private.
 
@@ -33,6 +34,13 @@ Pull your preferred model (default is `llama3`):
 ```bash
 ollama pull llama3
 ```
+
+**Advanced: Optimized Vector Model**
+This repository includes a `Modelfile` to create a dedicated 'vector' model with an optimized system prompt and parameters:
+```bash
+ollama create vector -f Modelfile
+```
+Then update your `.env` to use `OLLAMA_MODEL=vector`.
 
 ### 2. Configure Environment
 Copy the example environment file and fill in your details:
