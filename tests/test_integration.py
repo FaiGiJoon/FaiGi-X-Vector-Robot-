@@ -33,6 +33,7 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         vector_ollama.on_user_intent(mock_robot_instance, 'user_intent', mock_event, MagicMock())
 
         # Assertions
+        mock_robot_instance.anim.play_animation_trigger.assert_called_with('KnowledgeGraphSearching')
         mock_ollama_chat.assert_called_once()
         args, kwargs = mock_ollama_chat.call_args
         # messages[0] is system, the last message is the current query
@@ -116,6 +117,59 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         mock_robot_instance.behavior.say_text.assert_called_with(
             "I detected a malformed packet in the local payload. Check your terminal formatting."
         )
+
+    @patch('src.core.vector_ollama.ollama_client.chat', new_callable=AsyncMock)
+    @patch('anki_vector.Robot')
+    def test_on_user_intent_praise_fallback(self, mock_robot, mock_ollama_chat):
+        # Setup mocks
+        mock_robot_instance = MagicMock()
+        mock_robot_instance.get_battery_state.return_value = None
+        mock_ollama_chat.return_value = 'You are welcome!'
+
+        # Simulate an imperative_praise event
+        mock_event = MagicMock(spec=vector_ollama.UserIntent)
+        mock_event.intent_event = vector_ollama.UserIntentEvent.imperative_praise
+        mock_event.intent_data = None
+
+        # Call the function
+        vector_ollama.on_user_intent(mock_robot_instance, 'user_intent', mock_event, MagicMock())
+
+        # Assertions
+        mock_ollama_chat.assert_called_once()
+        args, kwargs = mock_ollama_chat.call_args
+        self.assertEqual(args[0][-1]['content'], 'I have a question.')
+        mock_robot_instance.behavior.say_text.assert_called_with('You are welcome!')
+
+    @patch('src.core.vector_ollama.ollama_client.chat', new_callable=AsyncMock)
+    @patch('anki_vector.Robot')
+    def test_on_user_intent_unknown_intent(self, mock_robot, mock_ollama_chat):
+        mock_robot_instance = MagicMock()
+
+        # Simulate an unrelated event (e.g. volume up)
+        mock_event = MagicMock(spec=vector_ollama.UserIntent)
+        mock_event.intent_event = vector_ollama.UserIntentEvent.imperative_volumeup
+        mock_event.intent_data = None
+
+        # Call the function
+        vector_ollama.on_user_intent(mock_robot_instance, 'user_intent', mock_event, MagicMock())
+
+        # Assertions
+        mock_ollama_chat.assert_not_called()
+
+    @patch('src.core.vector_ollama.ollama_client.chat', new_callable=AsyncMock)
+    @patch('anki_vector.Robot')
+    def test_on_user_intent_parsing_error(self, mock_robot, mock_ollama_chat):
+        mock_robot_instance = MagicMock()
+
+        # Simulate a parsing error by providing an event that will cause UserIntent(event) to fail
+        # The UserIntent constructor does UserIntentEvent(event.intent_id)
+        mock_event = MagicMock()
+        mock_event.intent_id = 9999 # Invalid intent ID
+
+        vector_ollama.on_user_intent(mock_robot_instance, 'user_intent', mock_event, MagicMock())
+
+        # Assertions
+        mock_ollama_chat.assert_not_called()
 
     @patch('src.core.vector_ollama.ollama_client.chat', new_callable=AsyncMock)
     @patch('anki_vector.Robot')

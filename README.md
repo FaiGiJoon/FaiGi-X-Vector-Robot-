@@ -62,14 +62,23 @@ pip install -r requirements.txt
 ```
 
 ### 4. Wire-Pod Integration
-To use this bridge, configure a **Custom Intent** in Wire-Pod:
-1. Open your Wire-Pod web interface (usually `http://<wire-pod-ip>:8080`).
-2. Navigate to **Custom Intents**.
-3. Click **Add New Intent**.
-4. **Name**: `knowledge_question` or any name you prefer.
-5. **Utterances**: Add phrases like "Talk to me", "I have a question", "Hey Vector, ask the AI".
-6. **Action**: Set to `Script` or `Web-hook` depending on how you've set up your bridge.
-7. Ensure your robot is connected to the SDK: `python3 -m anki_vector.configure`.
+Unlike basic script-based integrations that run once and exit, this bridge maintains a persistent SDK connection to Vector. This allows for lower latency, conversational memory, and reactive animations.
+
+#### Recommended Wire-Pod Configuration:
+1.  Open your Wire-Pod web interface (usually `http://localhost:8080`).
+2.  Navigate to **Custom Intents**.
+3.  Click **Add New Intent**.
+4.  **Name**: `ollama_chat` (or any descriptive name).
+5.  **Utterances**: `let's chat, talk to me, I have a question, chat with me, let's talk`.
+6.  **Intent to send to robot**: Select `knowledge_question` or `imperative_praise`.
+    - *Note: Using `imperative_praise` often results in a more neutral animation from Vector before he starts thinking.*
+7.  **Action**: Set to **None**.
+    - *Why? Our bridge script listens for the standard SDK intent triggered by Wire-Pod. Setting an Action in Wire-Pod might conflict with the SDK control.*
+
+8.  **SDK Setup**: Ensure your robot is configured for the SDK:
+    ```bash
+    python3 -m anki_vector.configure
+    ```
 
 ## Running the Bridge
 Start the integration:
