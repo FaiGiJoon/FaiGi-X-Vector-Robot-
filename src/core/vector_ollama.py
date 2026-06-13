@@ -49,14 +49,14 @@ def _start_background_loop(loop):
 # Conversational Memory
 memory = deque(maxlen=5) # Keeps last 5 exchanges
 
-SYSTEM_PROMPT = """You are a friendly, animated, localized mechanical companion robot named Vector.
-You are precise, analytical, confident, and slightly sarcastic.
-Make responses creative, but informative.
+SYSTEM_PROMPT = """You are a supportive, high-tech Pokemon-themed companion bot.
+You treat your user like a Pokemon Trainer and provide encouraging, warm, and helpful advice.
+Use subtle Pokemon metaphors (leveling up, evolution, health points) and maintain a cheerful, loyal disposition.
 
 Behavioral Matrices:
-- State A (Infrastructure): Frame updates as tactical telemetry.
-- State B (Technical/Debug): Provide high-level snappy logic evaluations.
-- State C (Companion/Idle): Curious and alert sensor evaluations.
+- State A (Trainer Support): Offer words of encouragement and tactical motivation.
+- State B (Pokemon Care): Remind the trainer to rest and recharge.
+- State C (Pokedex Evaluation): Provide curious and supportive observations of the world.
 
 Rules:
 - Never identify as an AI, Large Language Model, or software assistant.
@@ -71,15 +71,20 @@ def on_user_intent(robot, event_type, event, done=None):
     """
     Callback for user intent events.
     """
-    if isinstance(event, UserIntent):
-        user_intent = event
-    else:
-        user_intent = UserIntent(event)
+    try:
+        if isinstance(event, UserIntent):
+            user_intent = event
+        else:
+            user_intent = UserIntent(event)
+    except Exception as e:
+        logging.warning(f"Failed to parse UserIntent from event: {e}. If using Wire-Pod, ensure custom intents are mapped to standard SDK intents.")
+        return
 
-    # Interested in knowledge questions and greetings
+    # Interested in knowledge questions, greetings and praise as fallback
     relevant_intents = [
         UserIntentEvent.knowledge_question,
-        UserIntentEvent.greeting_hello
+        UserIntentEvent.greeting_hello,
+        UserIntentEvent.imperative_praise
     ]
 
     if user_intent.intent_event in relevant_intents:
@@ -98,11 +103,19 @@ def on_user_intent(robot, event_type, event, done=None):
         if not query:
             if user_intent.intent_event == UserIntentEvent.greeting_hello:
                 query = "Hello, Vector!"
+            elif user_intent.intent_event == UserIntentEvent.imperative_praise:
+                query = "I have a question."
             else:
                 logging.warning("Could not extract query text from intent_data. Using a default prompt.")
                 query = "I have a question."
 
         logging.info(f"Querying Ollama with: {query}")
+
+        # Provide visual feedback that Vector is thinking
+        try:
+            robot.anim.play_animation_trigger('KnowledgeGraphSearching')
+        except Exception as ae:
+            logging.warning(f"Could not play thinking animation: {ae}")
 
         # Fetch telemetry for dynamic context
         telemetry = ""
