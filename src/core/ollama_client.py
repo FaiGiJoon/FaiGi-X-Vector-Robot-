@@ -7,16 +7,32 @@ class OllamaClient:
     def __init__(self, base_url, model):
         self.base_url = base_url
         self.model = model
-        self.timeout = aiohttp.ClientTimeout(total=30)
+        self.timeout = aiohttp.ClientTimeout(total=60)
+        self._session = None
+
+    async def get_session(self):
+        """
+        Returns the persistent aiohttp session, creating it if necessary.
+        """
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(timeout=self.timeout)
+        return self._session
+
+    async def close(self):
+        """
+        Closes the persistent session.
+        """
+        if self._session and not self._session.closed:
+            await self._session.close()
 
     async def check_health(self):
         """
         Verifies the local Ollama endpoint is active.
         """
         try:
-            async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                async with session.get(f"{self.base_url}/api/tags") as response:
-                    return response.status == 200
+            session = await self.get_session()
+            async with session.get(f"{self.base_url}/api/tags") as response:
+                return response.status == 200
         except Exception as e:
             logging.error(f"Health check failed: {e}")
             return False
@@ -34,15 +50,15 @@ class OllamaClient:
         last_exception = None
         for attempt in range(retries):
             try:
-                async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                    async with session.post(f"{self.base_url}/api/chat", json=payload) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            return result['message']['content']
-                        else:
-                            error_text = await response.text()
-                            logging.error(f"Ollama API error ({response.status}): {error_text}")
-                            raise Exception(f"Ollama API error: {response.status}")
+                session = await self.get_session()
+                async with session.post(f"{self.base_url}/api/chat", json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result['message']['content']
+                    else:
+                        error_text = await response.text()
+                        logging.error(f"Ollama API error ({response.status}): {error_text}")
+                        raise Exception(f"Ollama API error: {response.status}")
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_exception = e
                 wait_time = backoff_factor ** attempt

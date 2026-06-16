@@ -1,5 +1,23 @@
 import re
 
+def number_to_words(n):
+    """
+    Simple converter for numbers to words (0-99).
+    """
+    units = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+    teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+    tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
+    if 0 <= n < 10:
+        return units[n]
+    elif 10 <= n < 20:
+        return teens[n-10]
+    elif 20 <= n < 100:
+        return tens[n//10] + ((" " + units[n%10]) if (n % 10 != 0) else "")
+    else:
+        # Fallback for larger numbers: spell out digits
+        return " ".join(units[int(d)] for d in str(n))
+
 def sanitize_for_tts(text):
     """
     Enforces strict TTS compliance by removing prohibited characters and enforcing length caps.
@@ -9,10 +27,13 @@ def sanitize_for_tts(text):
     - Max 35 words.
     - Raw alphanumeric text only.
     - No markdown, asterisks, brackets, emojis, etc.
-    - Spell out numbers 0-9.
+    - Spell out numbers 0-99.
     """
+    # Replace dashes and underscores with spaces to avoid merging words
+    text = text.replace("-", " ").replace("_", " ")
+
     # Remove markdown characters explicitly before general filtering
-    text = re.sub(r'[*_`#]', '', text)
+    text = re.sub(r'[*`#]', '', text)
 
     # Expand common units and abbreviations for natural speech
     abbreviations = {
@@ -29,14 +50,21 @@ def sanitize_for_tts(text):
     for pattern, replacement in abbreviations.items():
         text = re.sub(pattern, replacement, text)
 
-    # Basic number to word conversion for digits 0-9
-    num_map = {
-        '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four',
-        '5': 'five', '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine'
-    }
+    # Convert numbers to words (0-99)
+    def replace_num(match):
+        return number_to_words(int(match.group()))
 
-    # Replace digits with words
+    text = re.sub(r'\b\d{1,2}\b', replace_num, text)
+
+    # For longer numbers, spell out each digit with spaces
+    num_map = {
+        '0': ' zero ', '1': ' one ', '2': ' two ', '3': ' three ', '4': ' four ',
+        '5': ' five ', '6': ' six ', '7': ' seven ', '8': ' eight ', '9': ' nine '
+    }
     text = "".join(num_map.get(c, c) for c in text)
+
+    # Clean up multiple spaces that might have been introduced
+    text = re.sub(r'\s+', ' ', text)
 
     # Remove characters that aren't alphanumeric, space, basic punctuation, or apostrophes
     sanitized = "".join(c for c in text if c.isalnum() or c in " ,.!?\'")

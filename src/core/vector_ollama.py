@@ -28,6 +28,42 @@ except ImportError:
     print("Please install anki_vector: pip install anki_vector")
     sys.exit(1)
 
+# --- SDK COMPATIBILITY MONKEY-PATCHES ---
+# Fix asyncio.Event 'loop' parameter removal in Python 3.10+
+import asyncio
+
+_original_event_init = asyncio.Event.__init__
+
+def _patched_event_init(self, *args, **kwargs):
+    if 'loop' in kwargs:
+        kwargs.pop('loop')
+    _original_event_init(self, *args, **kwargs)
+
+asyncio.Event.__init__ = _patched_event_init
+
+# Fallback for SSL Handshake Failures (Common with Wire-Pod)
+try:
+    import anki_vector.connection
+    import aiogrpc
+
+    _original_secure_channel = aiogrpc.secure_channel
+
+    def _patched_secure_channel(target, credentials, options=None, compression=None):
+        try:
+            return _original_secure_channel(target, credentials, options, compression)
+        except Exception as e:
+            if "CERTIFICATE_VERIFY_FAILED" in str(e) or "self signed certificate" in str(e).lower():
+                logging.warning(f"SSL Handshake failed: {e}. Falling back to insecure channel for Wire-Pod compatibility.")
+                return aiogrpc.insecure_channel(target, options, compression)
+            raise e
+
+    aiogrpc.secure_channel = _patched_secure_channel
+    # Ensure the connection module uses our patched version if it was already imported
+    anki_vector.connection.aiogrpc.secure_channel = _patched_secure_channel
+
+except ImportError:
+    pass
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -202,6 +238,11 @@ def main():
                     time.sleep(1)
             except KeyboardInterrupt:
                 logging.info("\nExiting...")
+            finally:
+                # Ensure the Ollama session is closed on exit
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(ollama_client.close())
+                loop.close()
 
     except anki_vector.exceptions.VectorException as e:
         logging.error(f"Failed to connect to Vector: {e}")
