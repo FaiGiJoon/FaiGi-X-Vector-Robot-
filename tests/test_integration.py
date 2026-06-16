@@ -68,9 +68,9 @@ class TestVectorOllamaIntegration(unittest.TestCase):
 
     def test_sanitize_for_tts(self):
         # Test abbreviation expansion
-        self.assertEqual(sanitize_for_tts("It is 25 C."), "It is twofive Celsius.")
+        self.assertEqual(sanitize_for_tts("It is 25 C."), "It is twenty five Celsius.")
         self.assertEqual(sanitize_for_tts("Battery is 4 V."), "Battery is four volts.")
-        self.assertEqual(sanitize_for_tts("I am at 100%."), "I am at onezerozero percent.")
+        self.assertEqual(sanitize_for_tts("I am at 100%."), "I am at one zero zero percent.")
 
         # Test markdown removal
         self.assertEqual(sanitize_for_tts("Hello **World**!"), "Hello World!")
@@ -86,7 +86,7 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         self.assertEqual(sanitize_for_tts("Don't stop now."), "Don't stop now.")
 
         # Test special characters removal
-        self.assertEqual(sanitize_for_tts("Vector_robot #1 is cool."), "Vectorrobot one is cool.")
+        self.assertEqual(sanitize_for_tts("Vector_robot #1 is cool."), "Vector robot one is cool.")
 
         # Test brackets and parentheses removal
         self.assertEqual(sanitize_for_tts("I am (thinking) [processing]."), "I am thinking processing.")
