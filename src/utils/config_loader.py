@@ -12,6 +12,7 @@ def load_config():
         "OLLAMA_MODEL": os.getenv("OLLAMA_MODEL", "llama3"),
         "WIRE_POD_IP": os.getenv("WIRE_POD_IP", ""),
         "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": os.getenv("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python"),
+
         "VECTOR_IP": os.getenv("VECTOR_IP", ""),
         "VECTOR_NAME": os.getenv("VECTOR_NAME", ""),
         "VECTOR_SERIAL": os.getenv("VECTOR_SERIAL", ""),

@@ -80,16 +80,7 @@ Unlike basic script-based integrations that run once and exit, this bridge maint
     python3 -m anki_vector.configure
     ```
 
-### Optional: Direct Connection (Wire-Pod / No Login)
-If you prefer not to use the DDL-dependent `anki_vector.configure` (or if it's unavailable), you can provide connection details directly in your `.env` file:
 
-1.  **VECTOR_IP**: Your robot's local IP address.
-2.  **VECTOR_NAME**: Your robot's name (e.g., `Vector-A1B2`).
-3.  **VECTOR_SERIAL**: Your robot's serial number.
-4.  **VECTOR_GUID**: The secret session GUID.
-5.  **VECTOR_CERT_PATH**: The full path to your robot's certificate file.
-
-*Tip: If you are using Wire-Pod, these values can often be found in the Wire-Pod web console or by inspecting the robot's state.*
 
 ## Running the Bridge
 Start the integration:

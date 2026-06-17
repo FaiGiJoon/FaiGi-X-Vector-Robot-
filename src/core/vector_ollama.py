@@ -64,6 +64,33 @@ try:
 except ImportError:
     pass
 
+# Support Direct Connection via Environment Variables (Bypasses sdk_config.ini)
+import anki_vector.util
+
+_original_read_configuration = anki_vector.util.read_configuration
+
+def _patched_read_configuration(serial, name, logger):
+    # Check if we have direct connection info in environment (from .env via config_loader)
+    env_ip = os.getenv("VECTOR_IP")
+    env_name = os.getenv("VECTOR_NAME")
+    env_serial = os.getenv("VECTOR_SERIAL")
+    env_guid = os.getenv("VECTOR_GUID")
+    env_cert = os.getenv("VECTOR_CERT_PATH")
+
+    if env_ip and env_name and env_guid and env_cert:
+        logging.info("Using Vector connection details from environment variables.")
+        return {
+            "name": env_name,
+            "ip": env_ip,
+            "serial": env_serial or serial or "unknown",
+            "cert": env_cert,
+            "guid": env_guid
+        }
+
+    return _original_read_configuration(serial, name, logger)
+
+anki_vector.util.read_configuration = _patched_read_configuration
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
