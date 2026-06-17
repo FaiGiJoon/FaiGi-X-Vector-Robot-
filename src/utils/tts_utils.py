@@ -35,6 +35,10 @@ def sanitize_for_tts(text):
     # Remove markdown characters explicitly before general filtering
     text = re.sub(r'[*`#]', '', text)
 
+    # Ensure space between numbers and units (e.g., "4V" -> "4 V")
+    text = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', text)
+    text = re.sub(r'([a-zA-Z]+)(\d+)', r'\1 \2', text)
+
     # Expand common units and abbreviations for natural speech
     abbreviations = {
         r'\bV\b': 'volts',

@@ -72,6 +72,27 @@ config = load_config()
 OLLAMA_MODEL = config["OLLAMA_MODEL"]
 OLLAMA_BASE_URL = config["OLLAMA_BASE_URL"]
 
+# Monkey-patch read_configuration to support direct connection without a config file
+import anki_vector.util
+_original_read_configuration = anki_vector.util.read_configuration
+
+def _patched_read_configuration(serial=None, name=None, logger=None):
+    try:
+        return _original_read_configuration(serial, name, logger)
+    except Exception as e:
+        if config.get("VECTOR_GUID") and config.get("VECTOR_CERT_PATH"):
+            logging.info("SDK config file not found, but VECTOR_GUID and VECTOR_CERT_PATH are provided. Using environment variables.")
+            return {
+                "name": config.get("VECTOR_NAME"),
+                "ip": config.get("VECTOR_IP"),
+                "serial": config.get("VECTOR_SERIAL"),
+                "guid": config.get("VECTOR_GUID"),
+                "cert": config.get("VECTOR_CERT_PATH")
+            }
+        raise e
+
+anki_vector.util.read_configuration = _patched_read_configuration
+
 # Initialize Ollama Client
 ollama_client = OllamaClient(OLLAMA_BASE_URL, OLLAMA_MODEL)
 
@@ -221,8 +242,13 @@ def main():
 
     logging.info("Connecting to Vector...")
     try:
+        # Determine connection parameters
+        serial = args.serial or config.get("VECTOR_SERIAL") or None
+        ip = config.get("VECTOR_IP") or None
+        name = config.get("VECTOR_NAME") or None
+
         # We need behavior control to use say_text and receive user_intent events
-        with anki_vector.Robot(args.serial) as robot:
+        with anki_vector.Robot(serial=serial, ip=ip, name=name) as robot:
             logging.info("Connected to Vector!")
 
             # Subscribe to the user_intent event
