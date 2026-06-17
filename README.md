@@ -80,6 +80,16 @@ Unlike basic script-based integrations that run once and exit, this bridge maint
     python3 -m anki_vector.configure
     ```
 
+### Direct Connection (Headless/CLI Setup)
+If you are running in a headless environment or using a CLI agent (like Gemini), you can bypass the interactive `anki_vector.configure` tool by providing connection details directly in your `.env` file.
+
+1.  Gather your Vector's connection details: IP, Name (Vector-XXXX), Serial, GUID, and Certificate Path.
+2.  Use the helper script to set up your environment:
+    ```bash
+    python3 src/utils/configure_env.py <IP> <NAME> <SERIAL> <GUID> <CERT_PATH>
+    ```
+    *Alternatively, you can manually edit the `.env` file and fill in the `VECTOR_` variables.*
+
 ## Running the Bridge
 Start the integration:
 ```bash
