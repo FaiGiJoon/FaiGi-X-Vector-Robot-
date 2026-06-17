@@ -38,7 +38,7 @@ class TestVectorOllamaIntegration(unittest.TestCase):
         args, kwargs = mock_ollama_chat.call_args
         # messages[0] is system, the last message is the current query
         self.assertEqual(args[0][-1]['content'], 'Who are you?')
-        self.assertTrue(args[0][0]['content'].startswith(vector_ollama.SYSTEM_PROMPT))
+        self.assertTrue(args[0][0]['content'].startswith(vector_ollama.SYSTEM_PROMPT_TEMPLATE[:50]))
         self.assertIn('[Telemetry: Battery 3, Charging: False]', args[0][0]['content'])
         
         # Should be sanitized (no markdown, no parentheses)

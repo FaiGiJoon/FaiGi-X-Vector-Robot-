@@ -66,11 +66,13 @@ except ImportError:
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('ollama.bridge')
 
 # Load configuration
 config = load_config()
 OLLAMA_MODEL = config["OLLAMA_MODEL"]
 OLLAMA_BASE_URL = config["OLLAMA_BASE_URL"]
+OLLAMA_API_KEY = config["OLLAMA_API_KEY"]
 
 # Monkey-patch read_configuration to support direct connection without a config file
 import anki_vector.util
@@ -94,7 +96,7 @@ def _patched_read_configuration(serial=None, name=None, logger=None):
 anki_vector.util.read_configuration = _patched_read_configuration
 
 # Initialize Ollama Client
-ollama_client = OllamaClient(OLLAMA_BASE_URL, OLLAMA_MODEL)
+ollama_client = OllamaClient(OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
 
 # Global loop for async tasks
 _global_loop = None
@@ -106,7 +108,7 @@ def _start_background_loop(loop):
 # Conversational Memory
 memory = deque(maxlen=5) # Keeps last 5 exchanges
 
-SYSTEM_PROMPT = """You are a supportive, high-tech Pokemon-themed companion bot.
+SYSTEM_PROMPT_TEMPLATE = """You are a supportive, high-tech Pokemon-themed companion bot.
 You treat your user like a Pokemon Trainer and provide encouraging, warm, and helpful advice.
 Use subtle Pokemon metaphors (leveling up, evolution, health points) and maintain a cheerful, loyal disposition.
 
@@ -121,7 +123,9 @@ Rules:
 - Use raw alphanumeric text only. No markdown, no asterisks, no brackets, no emojis.
 - Avoid special punctuation like hashes, backticks, dashes, or underscores.
 - Spell out complex numbers.
-- Never use stage directions or internal thoughts in brackets or parentheses."""
+- Never use stage directions or internal thoughts in brackets or parentheses.
+
+{telemetry}"""
 
 
 def on_user_intent(robot, event_type, event, done=None):
@@ -141,19 +145,22 @@ def on_user_intent(robot, event_type, event, done=None):
     relevant_intents = [
         UserIntentEvent.knowledge_question,
         UserIntentEvent.greeting_hello,
-        UserIntentEvent.imperative_praise
+        UserIntentEvent.imperative_praise,
+        UserIntentEvent.weather_response,
+        UserIntentEvent.names_ask
     ]
 
     if user_intent.intent_event in relevant_intents:
-        logging.info(f"Received UserIntent: {user_intent.intent_event}")
+        logger.info(f"Received UserIntent: {user_intent.intent_event}")
 
         query = None
         if user_intent.intent_data:
             try:
                 data = json.loads(user_intent.intent_data)
                 query = data.get('queryText') or data.get('query') or data.get('text')
+                logger.info(f"Extracted query from intent_data: {query}")
             except json.JSONDecodeError:
-                logging.error("Failed to decode intent_data JSON")
+                logger.error("Failed to decode intent_data JSON")
                 robot.behavior.say_text("I detected a malformed packet in the local payload. Check your terminal formatting.")
                 return
 
@@ -162,29 +169,34 @@ def on_user_intent(robot, event_type, event, done=None):
                 query = "Hello, Vector!"
             elif user_intent.intent_event == UserIntentEvent.imperative_praise:
                 query = "I have a question."
+            elif user_intent.intent_event == UserIntentEvent.weather_response:
+                query = "What is the weather?"
+            elif user_intent.intent_event == UserIntentEvent.names_ask:
+                query = "What is my name?"
             else:
-                logging.warning("Could not extract query text from intent_data. Using a default prompt.")
+                logger.warning(f"Could not extract query text from intent {user_intent.intent_event}. Using a default prompt.")
                 query = "I have a question."
 
-        logging.info(f"Querying Ollama with: {query}")
+        logger.info(f"Final query for Ollama: {query}")
 
         # Provide visual feedback that Vector is thinking
         try:
             robot.anim.play_animation_trigger('KnowledgeGraphSearching')
         except Exception as ae:
-            logging.warning(f"Could not play thinking animation: {ae}")
+            logger.warning(f"Could not play thinking animation: {ae}")
 
         # Fetch telemetry for dynamic context
-        telemetry = ""
+        telemetry_str = ""
         try:
             battery_state = robot.get_battery_state()
             if battery_state:
-                telemetry = f"\n[Telemetry: Battery {battery_state.battery_level}, Charging: {battery_state.is_charging}]"
+                telemetry_str = f"[Telemetry: Battery {battery_state.battery_level}, Charging: {battery_state.is_charging}]"
         except Exception as te:
-            logging.warning(f"Failed to fetch telemetry: {te}")
+            logger.warning(f"Failed to fetch telemetry: {te}")
 
         # Build messages with system prompt and memory
-        messages = [{'role': 'system', 'content': SYSTEM_PROMPT + telemetry}]
+        system_content = SYSTEM_PROMPT_TEMPLATE.format(telemetry=telemetry_str)
+        messages = [{'role': 'system', 'content': system_content}]
         for m in memory:
             messages.append(m)
         messages.append({'role': 'user', 'content': query})
@@ -202,19 +214,19 @@ def on_user_intent(robot, event_type, event, done=None):
                 loop.close()
 
             duration = time.time() - start_time
-            logging.info(f"Ollama response in {duration:.2f}s: {answer}")
+            logger.info(f"Ollama response in {duration:.2f}s: {answer}")
 
             # Store in memory
             memory.append({'role': 'user', 'content': query})
             memory.append({'role': 'assistant', 'content': answer})
 
             sanitized_answer = sanitize_for_tts(answer)
-            logging.info(f"Sanitized response: {sanitized_answer}")
+            logger.info(f"Sanitized response: {sanitized_answer}")
 
-            logging.info("Vector is speaking...")
+            logger.info("Vector is speaking...")
             robot.behavior.say_text(sanitized_answer)
         except Exception as e:
-            logging.error(f"Error communicating with Ollama or Vector: {e}")
+            logger.error(f"Error communicating with Ollama or Vector: {e}")
             if "timeout" in str(e).lower():
                 robot.behavior.say_text("My processing uplink stuttered for a moment, but my local routines are recovering.")
             else:

@@ -40,6 +40,7 @@ class TestUtils(unittest.TestCase):
     @patch.dict(os.environ, {
         "OLLAMA_BASE_URL": "http://test:11434",
         "OLLAMA_MODEL": "test-model",
+        "OLLAMA_API_KEY": "test-key",
         "WIRE_POD_IP": "1.2.3.4",
         "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"
     })
@@ -47,6 +48,7 @@ class TestUtils(unittest.TestCase):
         config = load_config()
         self.assertEqual(config["OLLAMA_BASE_URL"], "http://test:11434")
         self.assertEqual(config["OLLAMA_MODEL"], "test-model")
+        self.assertEqual(config["OLLAMA_API_KEY"], "test-key")
         self.assertEqual(config["WIRE_POD_IP"], "1.2.3.4")
         self.assertEqual(config["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"], "python")
         self.assertEqual(os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"], "python")
